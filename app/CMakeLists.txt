@@ -79,8 +79,35 @@ include_directories(${AVNC_LIBSSL_SRC_DIR})
 ###############################################################################
 avnc_check_submodule(libvncserver)
 
-set(AVNC_LIBVNC_SRC_DIR ${AVNC_EXTERN_DIR}/libvncserver)
+# The modern Apple Screen Sharing implementation currently gates its SRP
+# BIGNUM code behind __APPLE__, even though that code only depends on OpenSSL
+# BIGNUM APIs. Android AVNC provides those APIs through wolfSSL's OpenSSL
+# compatibility layer. Work from a build-directory copy so the checked-out
+# submodule remains clean, then relax only those BIGNUM guards. Kerberos/GSS
+# support remains Apple-only in the upstream source.
+set(AVNC_LIBVNC_UPSTREAM_SRC_DIR ${AVNC_EXTERN_DIR}/libvncserver)
+set(AVNC_LIBVNC_SRC_DIR ${CMAKE_BINARY_DIR}/libvncserver-src)
 set(AVNC_LIBVNC_BUILD_DIR ${CMAKE_BINARY_DIR}/libvncserver)
+
+file(REMOVE_RECURSE ${AVNC_LIBVNC_SRC_DIR})
+file(COPY ${AVNC_LIBVNC_UPSTREAM_SRC_DIR}/ DESTINATION ${AVNC_LIBVNC_SRC_DIR})
+
+set(AVNC_ARD_AUTH_SOURCE ${AVNC_LIBVNC_SRC_DIR}/src/libvncclient/ardauth.c)
+file(READ ${AVNC_ARD_AUTH_SOURCE} AVNC_ARD_AUTH_CONTENT)
+string(REPLACE
+        "#if defined(__APPLE__) && defined(LIBVNCSERVER_HAVE_LIBSSL) && defined(__has_include)\n#if __has_include(<openssl/bn.h>)\n#include <openssl/bn.h>\n#define LIBVNCCLIENT_APPLE_HAS_OPENSSL_BN 1\n#endif\n#endif"
+        "#if defined(LIBVNCSERVER_HAVE_LIBSSL) && defined(__has_include)\n#if __has_include(<openssl/bn.h>)\n#include <openssl/bn.h>\n#define LIBVNCCLIENT_HAS_OPENSSL_BN 1\n#endif\n#endif"
+        AVNC_ARD_AUTH_CONTENT "${AVNC_ARD_AUTH_CONTENT}")
+string(REPLACE
+        "#if defined(__APPLE__) && defined(LIBVNCCLIENT_APPLE_HAS_OPENSSL_BN)"
+        "#if defined(LIBVNCCLIENT_HAS_OPENSSL_BN)"
+        AVNC_ARD_AUTH_CONTENT "${AVNC_ARD_AUTH_CONTENT}")
+string(REPLACE
+        "#if !defined(__APPLE__) || !defined(LIBVNCCLIENT_APPLE_HAS_OPENSSL_BN)"
+        "#if !defined(LIBVNCCLIENT_HAS_OPENSSL_BN)"
+        AVNC_ARD_AUTH_CONTENT "${AVNC_ARD_AUTH_CONTENT}")
+file(WRITE ${AVNC_ARD_AUTH_SOURCE} "${AVNC_ARD_AUTH_CONTENT}")
+
 set(WITH_LIBSSH2 OFF CACHE BOOL "Find LibSSH" FORCE)
 
 add_subdirectory(${AVNC_LIBVNC_SRC_DIR} ${AVNC_LIBVNC_BUILD_DIR})  # (source dir, build dir)
