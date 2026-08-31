@@ -20,6 +20,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         configureLeakCanary()
 
         prefs = AppPreferences(this)
@@ -41,5 +42,10 @@ class App : Application() {
                     .getMethod("initialize", Application::class.java)
                     .invoke(null, this)
         }
+    }
+
+    companion object {
+        lateinit var instance: App
+            private set
     }
 }
