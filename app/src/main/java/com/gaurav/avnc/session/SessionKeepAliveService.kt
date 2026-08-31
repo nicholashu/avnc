@@ -77,12 +77,9 @@ class SessionKeepAliveService : Service() {
 
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
         val contentIntent = launchIntent?.let {
-            PendingIntent.getActivity(
-                    this,
-                    0,
-                    it,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+            PendingIntent.getActivity(this, 0, it, flags)
         }
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
