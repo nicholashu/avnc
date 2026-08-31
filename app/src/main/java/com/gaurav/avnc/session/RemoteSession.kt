@@ -9,6 +9,7 @@
 package com.gaurav.avnc.session
 
 import android.util.Log
+import com.gaurav.avnc.App
 import com.gaurav.avnc.model.ServerProfile
 import com.gaurav.avnc.util.broadcastWoLPackets
 import com.gaurav.avnc.viewmodel.service.SshClient
@@ -58,6 +59,17 @@ class RemoteSession(private val observer: Observer) {
 
         log("Requesting session start")
         stopRequested = false
+
+        // Start foreground execution while the viewer activity is still visible.
+        // This lets Android keep the VNC socket/message loop alive after the user
+        // switches to another app, without trying to start an FGS from background.
+        runCatching {
+            val label = profile.name.ifBlank { profile.host }
+            SessionKeepAliveService.acquire(App.instance, id, label)
+        }.onFailure {
+            logE("Unable to start session keep-alive service", it)
+        }
+
         sessionThread = startSession(profile)
     }
 
@@ -137,6 +149,8 @@ class RemoteSession(private val observer: Observer) {
         messenger = null
         vncClient = null
         sshClient = null
+
+        SessionKeepAliveService.release(App.instance, id)
         log("Session stopped")
     }
 
