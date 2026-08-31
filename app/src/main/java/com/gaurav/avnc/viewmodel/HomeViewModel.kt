@@ -16,6 +16,8 @@ import com.gaurav.avnc.model.ServerProfile
 import com.gaurav.avnc.util.LiveEvent
 import com.gaurav.avnc.viewmodel.service.Discovery
 
+private const val MACOS_ACCOUNT_SECURITY_TYPE = 30
+
 class HomeViewModel(app: Application) : BaseViewModel(app) {
 
     /**
@@ -59,8 +61,24 @@ class HomeViewModel(app: Application) : BaseViewModel(app) {
 
     /**
      * Starts new connection to given profile.
+     *
+     * macOS Screen Sharing offers Apple Remote Desktop account authentication as
+     * RFB security type 30. When a profile is otherwise left on Automatic but
+     * already contains a complete username/password pair, prefer that account
+     * authentication path instead of allowing legacy VNC password auth to win
+     * negotiation first. Explicit security selections still take precedence.
      */
-    fun startConnection(profile: ServerProfile) = newConnectionEvent.fire(profile)
+    fun startConnection(profile: ServerProfile) {
+        val connectionProfile = if (profile.securityType == 0 &&
+                                    profile.username.isNotBlank() &&
+                                    profile.password.isNotBlank()) {
+            profile.copy(securityType = MACOS_ACCOUNT_SECURITY_TYPE)
+        } else {
+            profile
+        }
+
+        newConnectionEvent.fire(connectionProfile)
+    }
 
     fun maybeConnectOnAppStart() = launchMain {
         serverProfileDao.getConnectableOnAppStart().firstOrNull()?.let { startConnection(it) }
